@@ -1,58 +1,97 @@
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 #include <Arduino.h>
+#include <SoftwareSerial.h>
+#include <Wire.h>
+
+// y = 10.96257 - 0.005476351*x + 0.0001947447*x^2
+// x = impedenza
+// y = percentuale di riempimento
+
+// resistor = 100ohm
+// sensor = 0 - 190ohm
+
+// Declaration for SSD1306 display connected using I2C
+#define SCREEN_ADDRESS 0x3C
+Adafruit_SSD1306 display(
+    128, 64, &Wire,
+    -1);  // (width, height, wire, reset pin (-1 share Arduino reset))
+
+SoftwareSerial BTserial(0, 1);  // RX | TX
 
 // FRESH WATER TANK
-int analogPin = 0;
-int raw = 0;
-int value = 0;
-int linear = 0;
+int analogPin = 0;  // fresh water sensor PIN
+int raw = 0;        // impedance difference reading
 
 // WASTE TANK
-#define FLOAT_SENSOR 2  // the number of the pushbutton pin
-#define LED 8           // the number of the LED pin
+#define WASTE_SENSOR 2  // waste tank full pin
+#define LED 8           // waste tank led pin
+
+int getPercentage(float sensorReading) {
+  float a = 10.96257 - (0.005476351 * sensorReading);
+  float b = 0.0001947447 * sensorReading * sensorReading;
+
+  return (a + b);
+}
 
 void setup() {
-  // initialize the LED pin as an output:
   pinMode(LED, OUTPUT);
-  // initialize the pushbutton pin as an input:
-  pinMode(FLOAT_SENSOR, INPUT_PULLUP);
+  pinMode(WASTE_SENSOR, INPUT_PULLUP);
   Serial.begin(9600);
+
+  // initialize the OLED object
+  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;)
+      ;  // Don't proceed, loop forever
+  }
+  // Clear the buffer.
+  display.clearDisplay();
 }
 
 void loop() {
   raw = analogRead(analogPin);
 
+  // markers
+  display.setRotation(3);
+  display.setTextColor(WHITE, BLACK);
+  display.setCursor(4, 3);
+  display.println("LV");
+
+  display.setCursor(3, 104);
+  display.println("waste tank");
+
+  // display.display();
+  int level = map(getPercentage(raw), 0, 204, 0, 76);
+  display.setCursor(20, 3);
+  display.setTextColor(WHITE, BLACK);
+  display.println(getPercentage(raw));
+  display.setCursor(50, 3);
+  display.println("%");
+  Serial.println(level);
+
+  display.drawRect(1, 17, 60, 80, WHITE);     // container box
+  display.fillRect(3, 19, 56, level, WHITE);  // variable bar
+
   // waste tank
-  if (digitalRead(FLOAT_SENSOR) == LOW) {
-    // turn LED on:
-    digitalWrite(LED, HIGH);
-    Serial.println("ok");
+  if (digitalRead(WASTE_SENSOR) == LOW) {
+    digitalWrite(LED, HIGH);  // turn LED off
+    display.drawRect(1, 114, 60, 13, WHITE);
+    display.setCursor(28, 117);
+    Serial.println("OK");
   } else {
-    // turn LED off:
-    digitalWrite(LED, LOW);
+    digitalWrite(LED, LOW);  // turn LED on
+    display.fillRect(1, 114, 60, 13, WHITE);
+    display.setCursor(22, 117);
+    display.setTextColor(BLACK, WHITE);
     Serial.println("FULL");
   }
 
-  // // fresh water
-  if (raw) {
-    Serial.print("Raw: ");
-    Serial.println(raw);
-    if (raw < 20) {
-      Serial.println("Empty");
-    }
-    if (20 <= raw && raw <= 350) {
-      Serial.println("1");
-    }
-    if (350 < raw && raw <= 553) {
-      Serial.println("2");
-    }
+  // fresh water
+  // Serial.println(getPercentage(raw));
 
-    if (553 < raw && raw <= 610) {
-      Serial.println("3");
-    }
+  display.display();
+  display.clearDisplay();
 
-    if (610 < raw && raw <= 680) {
-      Serial.println("4");
-    }
-
-    delay(1000);
-  }
+  delay(1000);
+}
