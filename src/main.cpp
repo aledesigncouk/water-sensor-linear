@@ -2,7 +2,6 @@
 #include <Adafruit_SSD1306.h>
 #include <Arduino.h>
 #include <SoftwareSerial.h>
-#include <Wire.h>
 
 // y = 10.96257 - 0.005476351*x + 0.0001947447*x^2
 // x = impedenza
@@ -24,7 +23,7 @@ int analogPin = 0;  // fresh water sensor PIN
 int raw = 0;        // impedance difference reading
 
 // WASTE TANK
-#define WASTE_SENSOR 2  // waste tank full pin
+#define WASTE_SENSOR 5  // waste tank full pin
 #define LED 8           // waste tank led pin
 
 int getPercentage(float sensorReading) {
