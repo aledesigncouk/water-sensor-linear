@@ -37,14 +37,14 @@ void setup() {
   pinMode(LED, OUTPUT);
   pinMode(WASTE_SENSOR, INPUT_PULLUP);
   Serial.begin(9600);
+  BTserial.begin(9600);
 
-  // initialize the OLED object
+  // oled init
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println(F("SSD1306 allocation failed"));
     for (;;)
-      ;  // Don't proceed, loop forever
+      ;
   }
-  // Clear the buffer.
   display.clearDisplay();
 }
 
@@ -60,14 +60,17 @@ void loop() {
   display.setCursor(3, 104);
   display.println("waste tank");
 
-  // display.display();
+  // fresh water tank
   int level = map(getPercentage(raw), 0, 204, 0, 76);
   display.setCursor(20, 3);
   display.setTextColor(WHITE, BLACK);
   display.println(getPercentage(raw));
   display.setCursor(50, 3);
   display.println("%");
+
   Serial.println(level);
+  BTserial.print("Level: ");
+  BTserial.println(getPercentage(raw));
 
   display.drawRect(1, 17, 60, 80, WHITE);     // container box
   display.fillRect(3, 19, 56, level, WHITE);  // variable bar
@@ -77,20 +80,19 @@ void loop() {
     digitalWrite(LED, HIGH);  // turn LED off
     display.drawRect(1, 114, 60, 13, WHITE);
     display.setCursor(28, 117);
-    Serial.println("OK");
+    Serial.println("EMPTY");
+    BTserial.println("EMPTY");
   } else {
     digitalWrite(LED, LOW);  // turn LED on
     display.fillRect(1, 114, 60, 13, WHITE);
     display.setCursor(22, 117);
     display.setTextColor(BLACK, WHITE);
-    Serial.println("FULL");
+    Serial1.println("FULL");
+    BTserial.println("FULL");
   }
-
-  // fresh water
-  // Serial.println(getPercentage(raw));
 
   display.display();
   display.clearDisplay();
 
-  delay(1000);
+  delay(500);
 }
