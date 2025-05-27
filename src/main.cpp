@@ -159,10 +159,10 @@ void loop() {
   // waste tank
   if (digitalRead(WASTE_SENSOR) == LOW) {
     digitalWrite(LED, HIGH); // turn LED on
-    Serial.println("Waste: EMPTY");
+    Serial.println("Waste: FULL");
   } else {
     digitalWrite(LED, LOW); // turn LED off
-    Serial.println("Waste: FULL");
+    Serial.println("Waste: EMPTY");
   }
 
   Serial.println(level);
