@@ -3,48 +3,51 @@
 #include <Arduino.h>
 #include <SoftwareSerial.h>
 
-// y = 10.96257 - 0.005476351*x + 0.0001947447*x^2
-// x = resistance
-// y = water level (%)
-
-// resistor = 100ohm
-// sensor = 0 - 190ohm
-
-// MONITOR STATE
+// Pins
 #define DISPLAY_BUTTON 4
 #define BT_BUTTON 6
+#define FRESH_WATER_SENSOR A0
+#define WASTE_SENSOR 5
+#define WASTE_LED 8
+
+// OLED
+#define SCREEN_ADDRESS 0x3C
+Adafruit_SSD1306 display(128, 64, &Wire, -1);
+
+// Constants
+const int SENSOR_MAX = 204;
+const int BAR_HEIGHT_MAX = 76;
+const unsigned long DEBOUNCE_DELAY = 100;
+
+// States
 bool displayState = true;
 bool bluetoothState = true;
-unsigned long lastDebounceTime = 0;
-const unsigned long debounceDelay = 100;
 
-// Declaration for SSD1306 display connected using I2C
-#define SCREEN_ADDRESS 0x3C
-Adafruit_SSD1306 display(
-    128, 64, &Wire,
-    -1); // (width, height, wire, reset pin (-1 share Arduino reset))
+unsigned long lastDebounceDisplay = 0;
+unsigned long lastDebounceBT = 0;
 
-SoftwareSerial BTserial(0, 1); // RX | TX
+// SoftwareSerial
+SoftwareSerial BTserial(0,1);
 
-// FRESH WATER TANK
-int analogPin = 0; // fresh water sensor PIN
-int raw = 0;       // impedance difference reading
-const int FRESH_WATER_MAX = 204;
-const int BAR_HEIGHT_MAX = 76;
+// =================== FUNCTIONS ===================
 
-// WASTE TANK
-#define WASTE_SENSOR 5 // waste tank full pin
-#define LED 8          // waste tank led pin
-
-int getPercentage(float sensorReading) {
+int getWaterLevelPercentage(float sensorReading) {
   float a = 10.96257 - (0.005476351 * sensorReading);
   float b = 0.0001947447 * sensorReading * sensorReading;
+  return (int)(a + b);
+}
 
-  return round(a + b);
+void setupDisplay() {
+  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    while (true);
+  }
+  display.clearDisplay();
+  display.display();
 }
 
 void setup() {
-  pinMode(LED, OUTPUT);
+  pinMode(WASTE_LED, OUTPUT);
   pinMode(WASTE_SENSOR, INPUT_PULLUP);
   pinMode(DISPLAY_BUTTON, INPUT_PULLUP);
   pinMode(BT_BUTTON, INPUT_PULLUP);
@@ -52,119 +55,108 @@ void setup() {
   Serial.begin(9600);
   BTserial.begin(9600);
 
-  // oled init
-  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-    Serial.println(F("SSD1306 allocation failed"));
-    for (;;);
-  }
-  display.clearDisplay();
+  setupDisplay();
 }
 
-void loop() {
-  raw = analogRead(analogPin);
-
-  int displayButtonState = digitalRead(DISPLAY_BUTTON);
-  int btButtonState = digitalRead(BT_BUTTON);
-  int level = map(getPercentage(raw), 0, FRESH_WATER_MAX, 0, BAR_HEIGHT_MAX);
-
-  if (displayButtonState == LOW) {
-    if (millis() - lastDebounceTime > debounceDelay) {
+void handleButtons() {
+  // DISPLAY toggle
+  if (digitalRead(DISPLAY_BUTTON) == LOW) {
+    if (millis() - lastDebounceDisplay > DEBOUNCE_DELAY) {
       displayState = !displayState;
+      Serial.println(displayState ? "Display ON" : "Display OFF");
 
-      if (displayState) {
-        display.ssd1306_command(SSD1306_DISPLAYON);
-        Serial.println("Display ON");
-      } else {
-        display.ssd1306_command(SSD1306_DISPLAYOFF);
-        Serial.println("Display OFF");
-      }
-
-      lastDebounceTime = millis();
+      display.ssd1306_command(displayState ? SSD1306_DISPLAYON : SSD1306_DISPLAYOFF);
+      lastDebounceDisplay = millis();
     }
-
-    while (digitalRead(DISPLAY_BUTTON) == LOW);
-    delay(debounceDelay);
+    while (digitalRead(DISPLAY_BUTTON) == LOW); // wait for release
   }
 
-  if (btButtonState == LOW) {
-    delay(debounceDelay);
-    bluetoothState = !bluetoothState;
+  // BLUETOOTH toggle
+  if (digitalRead(BT_BUTTON) == LOW) {
+    if (millis() - lastDebounceBT > DEBOUNCE_DELAY) {
+      bluetoothState = !bluetoothState;
+      Serial.println(bluetoothState ? "Bluetooth ON" : "Bluetooth OFF");
 
-    if (bluetoothState) {
+      if (bluetoothState) {
         BTserial.begin(9600);
-        Serial.println("Bluetooth ON");
       } else {
         BTserial.end();
-        Serial.println("Bluetooth OFF");
+      }
+      lastDebounceBT = millis();
     }
-    
-    while (digitalRead(BT_BUTTON) == LOW);
+    while (digitalRead(BT_BUTTON) == LOW); // wait for release
   }
+}
 
-  if (displayState) {
-    // markers
-    display.setRotation(3);
-    display.setTextColor(WHITE, BLACK);
-    display.setCursor(4, 3);
-    display.println("LV");
+void updateDisplay(int levelPercent, int barHeight, bool wasteEmpty) {
+  if (!displayState) return;
 
-    display.setCursor(3, 104);
-    display.println("waste tank");
+  display.setRotation(3);
+  display.clearDisplay();
+  display.setTextColor(WHITE, BLACK);
 
-    // fresh water tank
-    display.setCursor(20, 3);
-    display.setTextColor(WHITE, BLACK);
-    display.println(getPercentage(raw));
-    display.setCursor(50, 3);
-    display.println("%");
+  display.setCursor(4, 3);
+  display.println("LV");
 
-    display.fillRect(3, 19, 56, level, WHITE); // variable bar
+  display.setCursor(3, 104);
+  display.println("waste tank");
 
-    if (digitalRead(WASTE_SENSOR) == LOW) {
-      display.drawRect(1, 114, 60, 13, WHITE);
-      display.setCursor(28, 117);
-    } else {
-      display.fillRect(1, 114, 60, 13, WHITE);
-      display.setCursor(22, 117);
-      display.setTextColor(BLACK, WHITE);
-    }
+  display.setCursor(20, 3);
+  display.println(levelPercent);
+  display.setCursor(50, 3);
+  display.println("%");
 
-    display.drawRect(1, 17, 60, 80, WHITE); // container box
+  display.fillRect(3, 19, 56, barHeight, WHITE);
+  display.drawRect(1, 17, 60, 80, WHITE); // tank outline
 
-    display.display();
-    display.clearDisplay();
-  }
-
-
-  if (bluetoothState) {
-    BTserial.print("Level: ");
-    BTserial.println(getPercentage(raw));
-  
-    BTserial.print("Display: ");
-
-    if (displayState) {
-      BTserial.println("ON");
-    } else {
-      BTserial.println("OFF");
-    }
-    
-    // waste tank
-    if (digitalRead(WASTE_SENSOR) == LOW) {
-      BTserial.println("Waste: EMPTY");
-    } else {
-      BTserial.println("Waste: FULL");
-    }
-  }
-
-  // waste tank
-  if (digitalRead(WASTE_SENSOR) == LOW) {
-    digitalWrite(LED, HIGH); // turn LED on
-    Serial.println("Waste: FULL");
+  if (wasteEmpty) {
+    display.drawRect(1, 114, 60, 13, WHITE);
+    display.setCursor(28, 117);
   } else {
-    digitalWrite(LED, LOW); // turn LED off
-    Serial.println("Waste: EMPTY");
+    display.fillRect(1, 114, 60, 13, WHITE);
+    display.setCursor(22, 117);
+    display.setTextColor(BLACK, WHITE);
   }
 
-  Serial.println(level);
+  display.println(wasteEmpty ? "EMPTY" : "FULL");
+
+  display.display();
+}
+
+void updateBluetooth(int levelPercent, bool wasteEmpty) {
+  if (!bluetoothState) return;
+
+  BTserial.print("Level: ");
+  BTserial.println(levelPercent);
+  
+  BTserial.print("Display: ");
+  BTserial.println(displayState ? "ON" : "OFF");
+
+  BTserial.print("Waste: ");
+  BTserial.println(wasteEmpty ? "EMPTY" : "FULL");
+}
+
+void updateWasteLED(bool wasteEmpty) {
+  digitalWrite(WASTE_LED, wasteEmpty ? HIGH : LOW);
+  Serial.print("Waste: ");
+  Serial.println(wasteEmpty ? "EMPTY" : "FULL");
+}
+
+// =================== MAIN LOOP ===================
+
+void loop() {
+  int rawReading = analogRead(FRESH_WATER_SENSOR);
+  int levelPercent = getWaterLevelPercentage(rawReading);
+  int levelHeight = map(levelPercent, 0, SENSOR_MAX, 0, BAR_HEIGHT_MAX);
+  bool wasteEmpty = digitalRead(WASTE_SENSOR) == LOW;
+
+  handleButtons();
+  updateDisplay(levelPercent, levelHeight, wasteEmpty);
+  updateBluetooth(levelPercent, wasteEmpty);
+  updateWasteLED(wasteEmpty);
+
+  Serial.print("Level %: ");
+  Serial.println(levelPercent);
+
   delay(500);
 }
