@@ -40,7 +40,7 @@ int getPercentage(float sensorReading) {
   float a = 10.96257 - (0.005476351 * sensorReading);
   float b = 0.0001947447 * sensorReading * sensorReading;
 
-  return (a + b);
+  return round(a + b);
 }
 
 void setup() {
@@ -158,10 +158,10 @@ void loop() {
 
   // waste tank
   if (digitalRead(WASTE_SENSOR) == LOW) {
-    digitalWrite(LED, LOW); // turn LED on
+    digitalWrite(LED, HIGH); // turn LED on
     Serial.println("Waste: EMPTY");
   } else {
-    digitalWrite(LED, HIGH); // turn LED off
+    digitalWrite(LED, LOW); // turn LED off
     Serial.println("Waste: FULL");
   }
 
