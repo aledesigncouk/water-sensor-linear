@@ -4,16 +4,17 @@
 #include <SoftwareSerial.h>
 
 // y = 10.96257 - 0.005476351*x + 0.0001947447*x^2
-// x = impedenza
-// y = percentuale di riempimento
+// x = resistance
+// y = water level (%)
 
 // resistor = 100ohm
 // sensor = 0 - 190ohm
 
 // MONITOR STATE
 #define DISPLAY_BUTTON 4
-#define BT_BUTOON 6
+#define BT_BUTTON 6
 bool displayState = true;
+bool bluetoothState = true;
 unsigned long lastDebounceTime = 0;
 const unsigned long debounceDelay = 100;
 
@@ -46,6 +47,7 @@ void setup() {
   pinMode(LED, OUTPUT);
   pinMode(WASTE_SENSOR, INPUT_PULLUP);
   pinMode(DISPLAY_BUTTON, INPUT_PULLUP);
+  pinMode(BT_BUTTON, INPUT_PULLUP);
 
   Serial.begin(9600);
   BTserial.begin(9600);
@@ -61,17 +63,20 @@ void setup() {
 void loop() {
   raw = analogRead(analogPin);
 
-  int buttonState = digitalRead(DISPLAY_BUTTON);
+  int displayButtonState = digitalRead(DISPLAY_BUTTON);
+  int btButtonState = digitalRead(BT_BUTTON);
   int level = map(getPercentage(raw), 0, FRESH_WATER_MAX, 0, BAR_HEIGHT_MAX);
 
-  if (buttonState == LOW) {
+  if (displayButtonState == LOW) {
     if (millis() - lastDebounceTime > debounceDelay) {
       displayState = !displayState;
 
       if (displayState) {
         display.ssd1306_command(SSD1306_DISPLAYON);
+        Serial.println("Display ON");
       } else {
         display.ssd1306_command(SSD1306_DISPLAYOFF);
+        Serial.println("Display OFF");
       }
 
       lastDebounceTime = millis();
@@ -79,6 +84,21 @@ void loop() {
 
     while (digitalRead(DISPLAY_BUTTON) == LOW);
     delay(debounceDelay);
+  }
+
+  if (btButtonState == LOW) {
+    delay(debounceDelay);
+    bluetoothState = !bluetoothState;
+
+    if (bluetoothState) {
+        BTserial.begin(9600);
+        Serial.println("Bluetooth ON");
+      } else {
+        BTserial.end();
+        Serial.println("Bluetooth OFF");
+    }
+    
+    while (digitalRead(BT_BUTTON) == LOW);
   }
 
   if (displayState) {
@@ -109,33 +129,42 @@ void loop() {
       display.setTextColor(BLACK, WHITE);
     }
 
+    display.drawRect(1, 17, 60, 80, WHITE); // container box
+
     display.display();
     display.clearDisplay();
   }
 
-  Serial.println(level);
-  BTserial.print("Level: ");
-  BTserial.println(getPercentage(raw));
 
-  BTserial.print("Monitor: ");
-  if (displayState) {
-    BTserial.println("ON");
-  } else {
-    BTserial.println("OFF");
+  if (bluetoothState) {
+    BTserial.print("Level: ");
+    BTserial.println(getPercentage(raw));
+  
+    BTserial.print("Display: ");
+
+    if (displayState) {
+      BTserial.println("ON");
+    } else {
+      BTserial.println("OFF");
+    }
+    
+    // waste tank
+    if (digitalRead(WASTE_SENSOR) == LOW) {
+      BTserial.println("Waste: EMPTY");
+    } else {
+      BTserial.println("Waste: FULL");
+    }
   }
-
-  display.drawRect(1, 17, 60, 80, WHITE); // container box
 
   // waste tank
   if (digitalRead(WASTE_SENSOR) == LOW) {
     digitalWrite(LED, LOW); // turn LED on
-    Serial.println("EMPTY");
-    BTserial.println("EMPTY");
+    Serial.println("Waste: EMPTY");
   } else {
     digitalWrite(LED, HIGH); // turn LED off
-    Serial.println("FULL");
-    BTserial.println("FULL");
+    Serial.println("Waste: FULL");
   }
 
+  Serial.println(level);
   delay(500);
 }
