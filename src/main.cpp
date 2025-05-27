@@ -15,7 +15,7 @@
 #define BT_BUTOON 6
 bool displayState = true;
 unsigned long lastDebounceTime = 0;
-const unsigned long debounceDelay = 50;
+const unsigned long debounceDelay = 100;
 
 // Declaration for SSD1306 display connected using I2C
 #define SCREEN_ADDRESS 0x3C
@@ -78,7 +78,7 @@ void loop() {
     }
 
     while (digitalRead(DISPLAY_BUTTON) == LOW);
-    delay(50);
+    delay(debounceDelay);
   }
 
   if (displayState) {
