@@ -8,7 +8,8 @@
 #define BT_BUTTON 6
 #define FRESH_WATER_SENSOR A0
 #define WASTE_SENSOR 5
-#define WASTE_LED 8
+#define BT_LED 8
+#define WASTE_LED 9
 
 // OLED
 #define SCREEN_ADDRESS 0x3C
@@ -142,6 +143,12 @@ void updateWasteLED(bool wasteEmpty) {
   Serial.println(wasteEmpty ? "EMPTY" : "FULL");
 }
 
+void updateBTLed(bool bluetoothState) {
+    digitalWrite(BT_LED, bluetoothState ? HIGH : LOW);
+    Serial.print("BT: ");
+    Serial.println(bluetoothState ? "ON" : "OFF");
+}
+
 // =================== MAIN LOOP ===================
 
 void loop() {
@@ -154,6 +161,7 @@ void loop() {
   updateDisplay(levelPercent, levelHeight, wasteEmpty);
   updateBluetooth(levelPercent, wasteEmpty);
   updateWasteLED(wasteEmpty);
+  updateBTLed(bluetoothState);
 
   Serial.print("Level %: ");
   Serial.println(levelPercent);
