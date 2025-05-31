@@ -1,3 +1,11 @@
+/*
+Alex Deidda 2025
+alex.deidda@aledesign.co.uk
+yoroxid.com
+
+WATER GAUGE v2.0.0
+*/
+
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Arduino.h>
