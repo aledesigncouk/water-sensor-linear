@@ -3,11 +3,10 @@ Alex Deidda 2025
 alex.deidda@aledesign.co.uk
 yoroxid.com
 
-WATER GAUGE v2.0.0
+WATER GAUGE v2.1.0
 */
 
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+#include <U8g2lib.h>
 #include <Arduino.h>
 #include <SoftwareSerial.h>
 
@@ -19,24 +18,23 @@ WATER GAUGE v2.0.0
 #define BT_LED 8
 #define WASTE_LED 9
 
-// OLED
-#define SCREEN_ADDRESS 0x3C
-Adafruit_SSD1306 display(128, 64, &Wire, -1);
+// OLED 128x128 using SH1107 over software I2C (Pro Micro: SDA=2, SCL=3)
+U8G2_SH1107_128X128_2_HW_I2C u8g2(U8G2_R0, 3, 2, U8X8_PIN_NONE);
 
 // Constants
 const int SENSOR_MAX = 204;
-const int BAR_HEIGHT_MAX = 76;
+const int BAR_HEIGHT_MAX = 100;
 const unsigned long DEBOUNCE_DELAY = 100;
 
 // States
-bool displayState = true;
+bool u8g2State = true;
 bool bluetoothState = true;
 
-unsigned long lastDebounceDisplay = 0;
+unsigned long lastDebounceu8g2 = 0;
 unsigned long lastDebounceBT = 0;
 
 // SoftwareSerial
-SoftwareSerial BTserial(0,1);
+SoftwareSerial BTserial(0, 1);
 
 // =================== FUNCTIONS ===================
 
@@ -46,15 +44,6 @@ int getWaterLevelPercentage(float sensorReading) {
   return (int)(a + b);
 }
 
-void setupDisplay() {
-  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-    Serial.println(F("SSD1306 allocation failed"));
-    while (true);
-  }
-  display.clearDisplay();
-  display.display();
-}
-
 void setup() {
   pinMode(WASTE_LED, OUTPUT);
   pinMode(WASTE_SENSOR, INPUT_PULLUP);
@@ -62,22 +51,22 @@ void setup() {
   pinMode(BT_BUTTON, INPUT_PULLUP);
 
   Serial.begin(9600);
+  u8g2.begin();
   BTserial.begin(9600);
-
-  setupDisplay();
 }
 
 void handleButtons() {
-  // DISPLAY toggle
+  // u8g2 toggle
   if (digitalRead(DISPLAY_BUTTON) == LOW) {
-    if (millis() - lastDebounceDisplay > DEBOUNCE_DELAY) {
-      displayState = !displayState;
-      Serial.println(displayState ? "Display ON" : "Display OFF");
+    if (millis() - lastDebounceu8g2 > DEBOUNCE_DELAY) {
+      u8g2State = !u8g2State;
+      Serial.println(u8g2State ? "u8g2 ON" : "u8g2 OFF");
 
-      display.ssd1306_command(displayState ? SSD1306_DISPLAYON : SSD1306_DISPLAYOFF);
-      lastDebounceDisplay = millis();
+      u8g2.setPowerSave(u8g2State ? 0 : 1);
+      lastDebounceu8g2 = millis();
     }
-    while (digitalRead(DISPLAY_BUTTON) == LOW); // wait for release
+    while (digitalRead(DISPLAY_BUTTON) == LOW)
+      ; // wait for release
   }
 
   // BLUETOOTH toggle
@@ -93,53 +82,84 @@ void handleButtons() {
       }
       lastDebounceBT = millis();
     }
-    while (digitalRead(BT_BUTTON) == LOW); // wait for release
+    while (digitalRead(BT_BUTTON) == LOW)
+      ; // wait for release
   }
 }
 
-void updateDisplay(int levelPercent, int barHeight, bool wasteEmpty) {
-  if (!displayState) return;
+void updateu8g2(int levelPercent, int barHeight, bool wasteEmpty) {
+  if (!u8g2State)
+    return;
 
-  display.setRotation(3);
-  display.clearDisplay();
-  display.setTextColor(WHITE, BLACK);
+  u8g2.firstPage();
+  do {
+    // Layout configuration
+    const int barY = 10;
+    const int barHeight = 103;
 
-  display.setCursor(4, 3);
-  display.println("LV");
+    const int scaleX = 10;
 
-  display.setCursor(3, 104);
-  display.println("waste tank");
+    const int barX = 45;
+    const int barWidth = 80;
 
-  display.setCursor(20, 3);
-  display.println(levelPercent);
-  display.setCursor(50, 3);
-  display.println("%");
+    // Draw scale ticks and labels
+    u8g2.setFont(u8g2_font_5x7_tr);
+    for (int i = 0; i <= 100; i += 10) {
+      int y = barY + barHeight - (i * barHeight / 100);
+      int tickLen = (i % 20 == 0) ? 6 : 3;
 
-  display.fillRect(3, 19, 56, barHeight, WHITE);
-  display.drawRect(1, 17, 60, 80, WHITE); // tank outline
+      u8g2.drawLine(scaleX, y, scaleX + tickLen, y);
 
-  if (wasteEmpty) {
-    display.drawRect(1, 114, 60, 13, WHITE);
-    display.setCursor(28, 117);
-  } else {
-    display.fillRect(1, 114, 60, 13, WHITE);
-    display.setCursor(22, 117);
-    display.setTextColor(BLACK, WHITE);
-  }
+      if (i % 20 == 0) {
+        char label[5];
+        sprintf(label, "%d", i);
+        u8g2.drawStr(scaleX + tickLen + 2, y + 3, label);
+      }
+    }
 
-  display.println(wasteEmpty ? "EMPTY" : "FULL");
+    // Draw water bar frame
+    u8g2.drawFrame(barX, barY, barWidth, barHeight);
 
-  display.display();
+    // Fill water level with stylized dots
+    int fillHeight = (barHeight * levelPercent) / 100;
+    for (int y = barY + barHeight - fillHeight + 2; y < barY + barHeight - 2; y += 4) {
+      for (int x = barX + 2; x < barX + barWidth - 2; x += 6) {
+        u8g2.drawPixel(x, y);
+        u8g2.drawPixel(x + 1, y + 1);
+        u8g2.drawPixel(x + 2, y);
+      }
+    }
+
+    // Waste tank status
+     u8g2.setFont(u8g2_font_6x10_tr);
+    const char* wasteStatus = wasteEmpty ? "Waste: OK" : "Waste: FULL";
+
+    int textWidth = u8g2.getStrWidth(wasteStatus);
+    int textX = barX + (barWidth - textWidth) / 2;
+
+    if (!wasteEmpty) {
+      int boxWidth = textWidth + 4;
+      int boxX = barX + (barWidth - boxWidth) / 2;
+      u8g2.drawBox(boxX, 117, boxWidth, 10);
+      u8g2.setDrawColor(0);
+      u8g2.drawStr(boxX + 2, 125, wasteStatus);
+      u8g2.setDrawColor(1);
+    } else {
+      u8g2.drawStr(textX, 125, wasteStatus);
+    }
+
+  } while (u8g2.nextPage());
 }
 
 void updateBluetooth(int levelPercent, bool wasteEmpty) {
-  if (!bluetoothState) return;
+  if (!bluetoothState)
+    return;
 
   BTserial.print("Level: ");
   BTserial.println(levelPercent);
-  
-  BTserial.print("Display: ");
-  BTserial.println(displayState ? "ON" : "OFF");
+
+  BTserial.print("u8g2: ");
+  BTserial.println(u8g2State ? "ON" : "OFF");
 
   BTserial.print("Waste: ");
   BTserial.println(wasteEmpty ? "EMPTY" : "FULL");
@@ -152,9 +172,9 @@ void updateWasteLED(bool wasteEmpty) {
 }
 
 void updateBTLed(bool bluetoothState) {
-    digitalWrite(BT_LED, bluetoothState ? HIGH : LOW);
-    Serial.print("BT: ");
-    Serial.println(bluetoothState ? "ON" : "OFF");
+  digitalWrite(BT_LED, bluetoothState ? HIGH : LOW);
+  Serial.print("BT: ");
+  Serial.println(bluetoothState ? "ON" : "OFF");
 }
 
 // =================== MAIN LOOP ===================
@@ -166,7 +186,7 @@ void loop() {
   bool wasteEmpty = digitalRead(WASTE_SENSOR) == LOW;
 
   handleButtons();
-  updateDisplay(levelPercent, levelHeight, wasteEmpty);
+  updateu8g2(levelPercent, levelHeight, wasteEmpty);
   updateBluetooth(levelPercent, wasteEmpty);
   updateWasteLED(wasteEmpty);
   updateBTLed(bluetoothState);
