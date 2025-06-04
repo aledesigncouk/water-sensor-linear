@@ -16,7 +16,7 @@ With built-in Bluetooth connectivity using an HC-06 module, the data can be remo
   Tracks both fresh water (with linear level) and waste water (with full/empty status).
 
 * **Compact OLED Display**
-  128x56 I2C screen provides real-time tank levels at a glance.
+  128x128 I2C screen provides real-time tank levels at a glance.
 
 * **Bluetooth Connectivity**
   Wireless data access via HC-06 module — great for remote monitoring.
@@ -39,9 +39,9 @@ With built-in Bluetooth connectivity using an HC-06 module, the data can be remo
 
 ### Hardware
 
-- Sparkfun Pro Micro (or any compatible Arduino Board)
+- Sparkfun Pro Micro (or any compatible Arduino Board) *
 - Bluetooth module HC-06
-- I2C Oled Display, 128x56
+- I2C Oled Display, 128x128 **
 - 2 x led diode (suggested blue for BT and red for waste water)
 - 3 x 330k resistor
 - 1 x 100k resistor (depending on sensor range)
@@ -77,3 +77,8 @@ If you are using the Arduino IDE, just copy the main.cpp file, rename it as .ino
 ### Pro Micro pinout reference
 
 ![alt text](./imgs/pinout.png)
+
+# Important Notes:
+* On Sparkfun Pro Micro memory paging is reccomended, larger boards may have no issues.
+
+** The sketch is build around a 1.5" GME128128-01-IIC Ver:2.0 IC:SH1107 oled display (datasheet missing) but unfortunately there are some issues and the driver does not work properly: there's an horizontal offset that I have not been able to solve it, despite similar bug has been hit by other people [u8g2 issues tracker](https://github.com/olikraus/u8g2/issues?q=is%3Aissue%20state%3Aopen%20%20128x128). The graphics has been tailored around this bug.
