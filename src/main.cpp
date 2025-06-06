@@ -96,9 +96,7 @@ void updateu8g2(int levelPercent, int barHeight, bool wasteEmpty) {
     // Layout configuration
     const int barY = 10;
     const int barHeight = 103;
-
     const int scaleX = 10;
-
     const int barX = 45;
     const int barWidth = 80;
 
@@ -158,7 +156,7 @@ void updateBluetooth(int levelPercent, bool wasteEmpty) {
   BTserial.print("Level: ");
   BTserial.println(levelPercent);
 
-  BTserial.print("u8g2: ");
+  BTserial.print("Display: ");
   BTserial.println(u8g2State ? "ON" : "OFF");
 
   BTserial.print("Waste: ");
@@ -166,7 +164,7 @@ void updateBluetooth(int levelPercent, bool wasteEmpty) {
 }
 
 void updateWasteLED(bool wasteEmpty) {
-  digitalWrite(WASTE_LED, wasteEmpty ? HIGH : LOW);
+  digitalWrite(WASTE_LED, wasteEmpty ? LOW : HIGH);
   Serial.print("Waste: ");
   Serial.println(wasteEmpty ? "EMPTY" : "FULL");
 }
